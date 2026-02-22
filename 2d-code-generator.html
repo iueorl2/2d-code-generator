@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2D Code Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --ink: #1a1a2e;
+    --ink2: #16213e;
+    --paper: #f5f0e8;
+    --paper2: #ede8dc;
+    --paper3: #e3ddd0;
+    --accent: #c8472b;
+    --accent2: #e8834f;
+    --gold: #c9a84c;
+    --text: #2a2a3a;
+    --muted: #7a7a8a;
+    --border: #d8d0c4;
+    --mono: 'DM Mono', monospace;
+    --serif: 'Playfair Display', serif;
+    --sans: 'Outfit', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--paper);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ===== GATE ===== */
+  #gate {
+    position: fixed; inset: 0;
+    background: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.7s ease, transform 0.7s ease;
+    overflow-y: auto;
+    padding: 40px 20px;
+  }
+  #gate.hide { opacity: 0; transform: scale(1.04); pointer-events: none; }
+
+  .gate-bg-pattern {
+    position: fixed; inset: 0; opacity: 0.05; pointer-events: none;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 39px, #fff 39px, #fff 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, #fff 39px, #fff 40px);
+  }
+
+  .gate-inner {
+    width: 100%; max-width: 460px;
+    position: relative; z-index: 1;
+    animation: riseUp 0.7s cubic-bezier(0.22,1,0.36,1) both;
+  }
+
+  @keyframes riseUp {
+    from { opacity: 0; transform: translateY(40px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .gate-header { text-align: center; margin-bottom: 36px; }
+
+  .gate-emblem {
+    width: 64px; height: 64px; margin: 0 auto 20px;
+    border: 2px solid rgba(201,168,76,0.6);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .gate-emblem::before {
+    content: '';
+    position: absolute; inset: 4px;
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 2px;
+  }
+  .gate-emblem-inner {
+    width: 28px; height: 28px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px;
+  }
+  .gate-emblem-inner span { background: var(--gold); border-radius: 1px; }
+  .gate-emblem-inner span:nth-child(5) { background: transparent; }
+
+  .gate-title {
+    font-family: var(--serif);
+    font-size: 1.85rem; font-weight: 900;
+    color: var(--paper);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .gate-subtitle {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: rgba(245,240,232,0.4);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 8px;
+  }
+
+  .gate-card {
+    background: rgba(245,240,232,0.05);
+    border: 1px solid rgba(245,240,232,0.12);
+    border-radius: 4px;
+    padding: 32px;
+    backdrop-filter: blur(4px);
+    margin-bottom: 16px;
+  }
+
+  .gate-field-label {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: rgba(245,240,232,0.4);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .gate-field-label::after {
+    content: ''; flex: 1; height: 1px;
+    background: rgba(245,240,232,0.1);
+  }
+
+  .gate-input-wrap { position: relative; margin-bottom: 20px; }
+
+  .gate-input {
+    width: 100%;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(245,240,232,0.2);
+    border-bottom: 2px solid rgba(201,168,76,0.5);
+    border-radius: 3px 3px 0 0;
+    padding: 14px 48px 14px 16px;
+    color: var(--paper);
+    font-family: var(--mono);
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    outline: none;
+    transition: all 0.2s;
+  }
+  .gate-input::placeholder { color: rgba(245,240,232,0.25); }
+  .gate-input:focus {
+    background: rgba(255,255,255,0.09);
+    border-bottom-color: var(--gold);
+    box-shadow: 0 4px 20px rgba(201,168,76,0.15);
+  }
+  .gate-input.error {
+    border-bottom-color: var(--accent);
+    animation: shake 0.4s ease;
+  }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)} 20%{transform:translateX(-10px)} 60%{transform:translateX(8px)} 80%{transform:translateX(-4px)}
+  }
+
+  .vis-toggle {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer;
+    color: rgba(245,240,232,0.3); font-size: 16px; padding: 4px;
+    transition: color 0.2s;
+  }
+  .vis-toggle:hover { color: rgba(245,240,232,0.7); }
+
+  .gate-btn {
+    width: 100%;
+    background: var(--gold);
+    color: var(--ink);
+    border: none; border-radius: 3px;
+    padding: 15px;
+    font-family: var(--sans); font-weight: 700;
+    font-size: 0.9rem; cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+  .gate-btn:hover { background: #d4b55e; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,168,76,0.3); }
+  .gate-btn:active { transform: translateY(0); }
+
+  .gate-error-msg {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: #e88080;
+    text-align: center;
+    margin-top: 14px;
+    min-height: 18px;
+    letter-spacing: 0.03em;
+  }
+
+  /* note リンクカード */
+  .note-card {
+    background: rgba(201,168,76,0.07);
+    border: 1px solid rgba(201,168,76,0.25);
+    border-radius: 4px;
+    padding: 24px;
+    margin-bottom: 16px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+
+  .note-qr-wrap {
+    flex-shrink: 0;
+    background: white;
+    border-radius: 4px;
+    padding: 6px;
+    width: 80px; height: 80px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #note-qr-render { width: 68px; height: 68px; }
+  #note-qr-render canvas, #note-qr-render img { width: 68px !important; height: 68px !important; }
+
+  .note-info { flex: 1; min-width: 0; }
+  .note-label {
+    font-family: var(--mono); font-size: 0.65rem;
+    color: rgba(201,168,76,0.7); letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  .note-desc {
+    font-size: 0.82rem; color: rgba(245,240,232,0.7);
+    margin-bottom: 10px; line-height: 1.5;
+  }
+  .note-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 0.75rem;
+    color: var(--gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201,168,76,0.4);
+    padding-bottom: 1px;
+    transition: all 0.2s;
+    word-break: break-all;
+  }
+  .note-link:hover { color: #d4b55e; border-bottom-color: #d4b55e; }
+  .note-link-arrow { font-size: 0.9rem; flex-shrink: 0; }
+
+  .gate-footer {
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: rgba(245,240,232,0.25);
+    letter-spacing: 0.08em;
+    line-height: 1.7;
+  }
+
+  /* ===== APP ===== */
+  #app { display: none; }
+  #app.visible { display: block; animation: riseUp 0.5s ease both; }
+
+  .app-bar {
+    background: var(--ink);
+    padding: 0 32px;
+    height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .app-bar-brand { display: flex; align-items: center; gap: 14px; }
+
+  .app-bar-logo {
+    width: 32px; height: 32px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px;
+    padding: 4px;
+    border: 1px solid rgba(201,168,76,0.5);
+    border-radius: 2px;
+  }
+  .app-bar-logo span { background: var(--gold); border-radius: 1px; }
+  .app-bar-logo span:nth-child(5) { background: transparent; }
+
+  .app-bar-title {
+    font-family: var(--serif);
+    font-size: 1.05rem; font-weight: 700;
+    color: var(--paper);
+    letter-spacing: -0.01em;
+  }
+
+  .app-bar-right { display: flex; align-items: center; gap: 12px; }
+
+  .status-pill {
+    font-family: var(--mono); font-size: 0.68rem;
+    padding: 4px 12px; border-radius: 2px;
+    background: rgba(200,71,43,0.2);
+    border: 1px solid rgba(200,71,43,0.4);
+    color: #e88070;
+    letter-spacing: 0.08em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .status-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--accent2); animation: blink 2s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .logout-btn {
+    font-family: var(--mono); font-size: 0.7rem;
+    padding: 5px 12px; border-radius: 2px;
+    background: transparent;
+    border: 1px solid rgba(245,240,232,0.15);
+    color: rgba(245,240,232,0.4);
+    cursor: pointer; letter-spacing: 0.06em;
+    transition: all 0.2s;
+  }
+  .logout-btn:hover { border-color: rgba(245,240,232,0.4); color: var(--paper); }
+
+  .workspace {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    min-height: calc(100vh - 60px);
+  }
+
+  .pane-left {
+    padding: 36px 40px;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+  }
+
+  .pane-right {
+    padding: 36px 32px;
+    background: var(--paper2);
+    display: flex; flex-direction: column;
+    position: sticky; top: 60px;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+  }
+
+  .pane-heading {
+    font-family: var(--mono); font-size: 0.68rem;
+    color: var(--muted); letter-spacing: 0.15em;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 24px;
+  }
+  .pane-heading::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .mode-tabs {
+    display: flex; gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 3px; overflow: hidden;
+    margin-bottom: 28px;
+  }
+  .mode-tab {
+    flex: 1; padding: 10px 6px;
+    font-family: var(--sans); font-weight: 600;
+    font-size: 0.78rem; text-align: center;
+    background: var(--paper); color: var(--muted);
+    border: none; cursor: pointer;
+    border-right: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+  .mode-tab:last-child { border-right: none; }
+  .mode-tab:hover { background: var(--paper2); color: var(--text); }
+  .mode-tab.active { background: var(--ink); color: var(--paper); }
+
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+  .field-group { margin-bottom: 18px; }
+  .field-label {
+    font-family: var(--mono); font-size: 0.68rem;
+    color: var(--muted); letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 7px;
+    display: block;
+  }
+  .field-input {
+    width: 100%;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 11px 14px;
+    color: var(--text);
+    font-family: var(--mono); font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .field-input:focus {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px rgba(26,26,46,0.08);
+  }
+  textarea.field-input { min-height: 96px; resize: vertical; font-family: var(--sans); }
+  select.field-input { cursor: pointer; }
+
+  .section-div {
+    display: flex; align-items: center; gap: 12px;
+    margin: 28px 0 20px;
+    font-family: var(--mono); font-size: 0.68rem;
+    color: var(--muted); letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .section-div::before, .section-div::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .customize-row {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; margin-bottom: 14px;
+  }
+
+  .color-picker-field {
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 10px 12px; background: white;
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer;
+  }
+  .color-swatch {
+    width: 28px; height: 28px; border-radius: 2px;
+    border: 1px solid rgba(0,0,0,0.1);
+    cursor: pointer; overflow: hidden; position: relative;
+  }
+  .color-swatch input[type="color"] {
+    position: absolute; inset: -4px;
+    width: calc(100% + 8px); height: calc(100% + 8px);
+    border: none; background: none; cursor: pointer; opacity: 0;
+  }
+  .color-swatch-preview { position: absolute; inset: 0; pointer-events: none; border-radius: 2px; }
+  .color-picker-label { font-size: 0.75rem; color: var(--muted); font-family: var(--mono); flex: 1; }
+  .color-picker-val { font-size: 0.7rem; color: var(--muted); font-family: var(--mono); }
+
+  .range-field { margin-bottom: 14px; }
+  .range-field-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .range-field-label { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+  .range-field-val { font-family: var(--mono); font-size: 0.8rem; color: var(--ink); font-weight: 500; }
+
+  input[type="range"] {
+    width: 100%; height: 3px; appearance: none; -webkit-appearance: none;
+    background: var(--border); border-radius: 2px; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px;
+    background: var(--ink); border-radius: 50%; cursor: pointer;
+    border: 2px solid var(--paper);
+    box-shadow: 0 1px 6px rgba(0,0,0,0.3);
+  }
+
+  .toggle-group { display: flex; gap: 6px; margin-bottom: 14px; }
+  .toggle-opt {
+    flex: 1; padding: 8px 4px; border-radius: 3px;
+    border: 1px solid var(--border); background: white;
+    color: var(--muted); cursor: pointer;
+    font-size: 0.75rem; font-family: var(--sans); font-weight: 600;
+    text-align: center; transition: all 0.15s;
+  }
+  .toggle-opt:hover { border-color: var(--ink); color: var(--text); }
+  .toggle-opt.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  .logo-drop {
+    border: 1px dashed var(--border);
+    border-radius: 3px; padding: 18px 12px;
+    text-align: center; cursor: pointer;
+    transition: all 0.2s; position: relative;
+    background: white; margin-bottom: 10px;
+  }
+  .logo-drop:hover, .logo-drop.dragging { border-color: var(--ink); background: var(--paper); }
+  .logo-drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .logo-drop-text { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+  .logo-thumb { width: 52px; height: 52px; object-fit: contain; border-radius: 4px; margin: 0 auto 6px; display: none; }
+  .logo-remove {
+    background: none; border: 1px solid #e0c0bc; color: var(--accent);
+    border-radius: 3px; padding: 5px 12px; font-size: 0.72rem;
+    font-family: var(--mono); cursor: pointer; transition: all 0.15s;
+    display: none; margin-bottom: 10px;
+  }
+  .logo-remove:hover { background: rgba(200,71,43,0.08); }
+
+  .hint-text {
+    font-family: var(--mono); font-size: 0.7rem;
+    color: #b07060; margin-bottom: 12px;
+    display: none;
+    padding: 6px 10px;
+    background: rgba(200,71,43,0.06);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 3px 3px 0;
+  }
+
+  /* Preview */
+  .preview-label {
+    font-family: var(--mono); font-size: 0.68rem;
+    color: var(--muted); letter-spacing: 0.15em;
+    text-transform: uppercase; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .preview-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .preview-frame {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: white;
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 24px; margin-bottom: 20px;
+    min-height: 260px;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.04);
+  }
+
+  .preview-empty { text-align: center; color: var(--muted); }
+  .preview-empty-icon {
+    width: 60px; height: 60px; margin: 0 auto 14px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px; opacity: 0.2;
+  }
+  .preview-empty-icon span { background: var(--text); border-radius: 2px; }
+  .preview-empty-icon span:nth-child(5) { background: transparent; }
+  .preview-empty p { font-family: var(--mono); font-size: 0.78rem; line-height: 1.6; }
+
+  #qr-out canvas { border-radius: 2px; max-width: 100%; height: auto; display: block; }
+
+  .dl-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dl-btn {
+    padding: 13px 10px;
+    border-radius: 3px; border: none;
+    font-family: var(--sans); font-weight: 700;
+    font-size: 0.82rem; cursor: pointer;
+    transition: all 0.2s; letter-spacing: 0.03em;
+  }
+  .dl-btn-png { background: var(--ink); color: var(--paper); }
+  .dl-btn-png:hover { background: var(--ink2); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(26,26,46,0.2); }
+  .dl-btn-svg { background: white; color: var(--text); border: 1px solid var(--border); }
+  .dl-btn-svg:hover { border-color: var(--ink); transform: translateY(-1px); }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px);
+    padding: 11px 24px; border-radius: 3px;
+    font-family: var(--mono); font-size: 0.78rem;
+    opacity: 0; transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    z-index: 9999; white-space: nowrap; letter-spacing: 0.04em;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.ok { background: var(--ink); color: var(--paper); }
+  .toast.ng { background: var(--accent); color: white; }
+
+  @media (max-width: 720px) {
+    .workspace { grid-template-columns: 1fr; }
+    .pane-right { position: static; height: auto; border-top: 1px solid var(--border); }
+    .pane-left { padding: 24px 20px; }
+    .pane-right { padding: 24px 20px; }
+    .app-bar { padding: 0 16px; }
+    .note-card { flex-direction: column; align-items: flex-start; gap: 14px; }
+    .note-qr-wrap { width: 72px; height: 72px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== GATE ===== -->
+<div id="gate">
+  <div class="gate-bg-pattern"></div>
+  <div class="gate-inner">
+
+    <div class="gate-header">
+      <div class="gate-emblem">
+        <div class="gate-emblem-inner">
+          <span></span><span></span><span></span>
+          <span></span><span></span><span></span>
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+      <h1 class="gate-title">2D Code<br>Generator</h1>
+      <p class="gate-subtitle">Professional · Authenticated</p>
+    </div>
+
+    <!-- コード取得セクション -->
+    <div class="note-card">
+      <div class="note-qr-wrap">
+        <div id="note-qr-render"></div>
+      </div>
+      <div class="note-info">
+        <div class="note-label">アクセスコードの取得</div>
+        <div class="note-desc">このアプリを使用するには<br>アクセスコードが必要です</div>
+        <a id="note-link" class="note-link" href="#" target="_blank" rel="noopener">
+          コード取得はこちらから
+          <span class="note-link-arrow">→</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- 合言葉入力 -->
+    <div class="gate-card">
+      <div class="gate-field-label">アクセスコード</div>
+      <div class="gate-input-wrap">
+        <input type="password" id="gate-input" class="gate-input"
+               placeholder="合言葉を入力してください"
+               autocomplete="off" spellcheck="false">
+        <button class="vis-toggle" id="vis-btn" title="表示切替">◉</button>
+      </div>
+      <button class="gate-btn" id="gate-submit">入力して使い始める</button>
+      <div class="gate-error-msg" id="gate-err"></div>
+    </div>
+
+    <div class="gate-footer">
+      入力後はブラウザに記憶されるため、次回以降は不要です<br>
+      ※ アクセスコードはnote購入者限定でご提供しています
+    </div>
+  </div>
+</div>
+
+<!-- ===== APP ===== -->
+<div id="app">
+  <header class="app-bar">
+    <div class="app-bar-brand">
+      <div class="app-bar-logo">
+        <span></span><span></span><span></span>
+        <span></span><span></span><span></span>
+        <span></span><span></span><span></span>
+      </div>
+      <span class="app-bar-title">2D Code Generator</span>
+    </div>
+    <div class="app-bar-right">
+      <div class="status-pill"><span class="status-dot"></span>ACTIVE</div>
+      <button class="logout-btn" id="logout-btn">ログアウト</button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <!-- Left -->
+    <div class="pane-left">
+      <div class="pane-heading">データ入力</div>
+
+      <div class="mode-tabs">
+        <button class="mode-tab active" data-mode="url">🔗 URL</button>
+        <button class="mode-tab" data-mode="text">📝 テキスト</button>
+        <button class="mode-tab" data-mode="vcard">👤 連絡先</button>
+        <button class="mode-tab" data-mode="wifi">📶 Wi-Fi</button>
+      </div>
+
+      <!-- URL -->
+      <div class="tab-pane active" id="pane-url">
+        <div class="field-group">
+          <label class="field-label">URL</label>
+          <input type="url" class="field-input qr-trigger" id="f-url" placeholder="https://example.com">
+        </div>
+      </div>
+
+      <!-- Text -->
+      <div class="tab-pane" id="pane-text">
+        <div class="field-group">
+          <label class="field-label">テキスト</label>
+          <textarea class="field-input qr-trigger" id="f-text" placeholder="二次元コードに埋め込むテキストを入力..."></textarea>
+        </div>
+      </div>
+
+      <!-- vCard -->
+      <div class="tab-pane" id="pane-vcard">
+        <div class="field-group">
+          <label class="field-label">氏名</label>
+          <input class="field-input qr-trigger" id="vc-name" placeholder="山田 太郎">
+        </div>
+        <div class="field-group">
+          <label class="field-label">電話番号</label>
+          <input class="field-input qr-trigger" id="vc-tel" placeholder="090-0000-0000">
+        </div>
+        <div class="field-group">
+          <label class="field-label">メールアドレス</label>
+          <input class="field-input qr-trigger" id="vc-email" placeholder="you@example.com">
+        </div>
+        <div class="field-group">
+          <label class="field-label">会社名</label>
+          <input class="field-input qr-trigger" id="vc-org" placeholder="株式会社〇〇">
+        </div>
+        <div class="field-group">
+          <label class="field-label">ウェブサイト</label>
+          <input class="field-input qr-trigger" id="vc-url" placeholder="https://example.com">
+        </div>
+      </div>
+
+      <!-- WiFi -->
+      <div class="tab-pane" id="pane-wifi">
+        <div class="field-group">
+          <label class="field-label">SSID（Wi-Fi名）</label>
+          <input class="field-input qr-trigger" id="wf-ssid" placeholder="MyNetwork">
+        </div>
+        <div class="field-group">
+          <label class="field-label">パスワード</label>
+          <input class="field-input qr-trigger" id="wf-pass" placeholder="password123">
+        </div>
+        <div class="field-group">
+          <label class="field-label">暗号化方式</label>
+          <select class="field-input" id="wf-enc">
+            <option value="WPA">WPA / WPA2</option>
+            <option value="WEP">WEP</option>
+            <option value="">なし</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section-div">デザイン設定</div>
+
+      <div class="customize-row">
+        <div class="color-picker-field" onclick="document.getElementById('c-fg').click()">
+          <div class="color-swatch">
+            <div class="color-swatch-preview" id="swatch-fg" style="background:#1a1a2e"></div>
+            <input type="color" id="c-fg" value="#1a1a2e">
+          </div>
+          <span class="color-picker-label">前景色</span>
+          <span class="color-picker-val" id="val-fg">#1a1a2e</span>
+        </div>
+        <div class="color-picker-field" onclick="document.getElementById('c-bg').click()">
+          <div class="color-swatch">
+            <div class="color-swatch-preview" id="swatch-bg" style="background:#ffffff"></div>
+            <input type="color" id="c-bg" value="#ffffff">
+          </div>
+          <span class="color-picker-label">背景色</span>
+          <span class="color-picker-val" id="val-bg">#ffffff</span>
+        </div>
+      </div>
+
+      <div class="range-field">
+        <div class="range-field-top">
+          <span class="range-field-label">サイズ</span>
+          <span class="range-field-val" id="val-size">256px</span>
+        </div>
+        <input type="range" id="r-size" min="128" max="512" value="256" step="8">
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">エラー訂正レベル</label>
+        <div class="toggle-group" id="ecl-group">
+          <div class="toggle-opt" data-ecl="L">L — 低</div>
+          <div class="toggle-opt active" data-ecl="M">M — 中</div>
+          <div class="toggle-opt" data-ecl="Q">Q — 高</div>
+          <div class="toggle-opt" data-ecl="H">H — 最高</div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">角のスタイル</label>
+        <div class="toggle-group" id="corner-group">
+          <div class="toggle-opt active" data-corner="square">■ 四角</div>
+          <div class="toggle-opt" data-corner="round">◉ 角丸</div>
+          <div class="toggle-opt" data-corner="circle">● 円形</div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">ロゴ埋め込み（任意）</label>
+        <div class="logo-drop" id="logo-drop">
+          <input type="file" id="logo-file" accept="image/*">
+          <img class="logo-thumb" id="logo-thumb">
+          <p class="logo-drop-text" id="logo-drop-text">クリックまたはドラッグ＆ドロップ<br><span style="font-size:0.65rem;opacity:0.6">PNG · JPG · SVG</span></p>
+        </div>
+        <button class="logo-remove" id="logo-remove">× ロゴを削除</button>
+        <div class="hint-text" id="ecl-hint">ロゴ使用時はエラー訂正をHに自動設定しました</div>
+      </div>
+    </div>
+
+    <!-- Right: Preview -->
+    <div class="pane-right">
+      <div class="preview-label">二次元コード プレビュー</div>
+      <div class="preview-frame">
+        <div id="qr-out">
+          <div class="preview-empty">
+            <div class="preview-empty-icon">
+              <span></span><span></span><span></span>
+              <span></span><span></span><span></span>
+              <span></span><span></span><span></span>
+            </div>
+            <p>左側のフォームに入力すると<br>二次元コードが表示されます</p>
+          </div>
+        </div>
+      </div>
+      <div class="dl-buttons">
+        <button class="dl-btn dl-btn-png" id="dl-png">↓ PNG</button>
+        <button class="dl-btn dl-btn-svg" id="dl-svg">↓ SVG</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════
+//  ★ 設定ここだけ変更してください ★
+// ════════════════════════════════════════════════════
+const ACCESS_PASSWORD = 'qrpro2024';         // ← 合言葉（noteで購入者に伝えるコード）
+const NOTE_URL = 'https://note.com/your_account/n/xxxxxxxx'; // ← note記事のURL
+// ════════════════════════════════════════════════════
+
+const AUTH_KEY = 'twodc_auth_v1';
+
+// ── note リンク & 二次元コードの初期設定 ──
+(function initNoteSection() {
+  const linkEl = document.getElementById('note-link');
+  linkEl.href = NOTE_URL;
+  linkEl.title = NOTE_URL;
+
+  // リンクテキストにURLの短縮表示
+  try {
+    const u = new URL(NOTE_URL);
+    linkEl.querySelector('.note-link-arrow') || null;
+    // テキストノードのみ変更
+    linkEl.childNodes[0].textContent = 'コード取得はこちらから　';
+  } catch(e) {}
+
+  // note URLの二次元コードを生成
+  const container = document.getElementById('note-qr-render');
+  try {
+    new QRCode(container, {
+      text: NOTE_URL,
+      width: 68, height: 68,
+      colorDark: '#1a1a2e',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } catch(e) {
+    container.style.cssText = 'width:68px;height:68px;background:#eee;border-radius:2px;';
+  }
+})();
+
+// ── Auth ──
+function isAuthed() { return localStorage.getItem(AUTH_KEY) === '1'; }
+function setAuthed() { localStorage.setItem(AUTH_KEY, '1'); }
+function clearAuth() { localStorage.removeItem(AUTH_KEY); }
+
+function boot() {
+  if (isAuthed()) { showApp(); }
+}
+
+function tryLogin() {
+  const val = document.getElementById('gate-input').value.trim();
+  if (!val) { gateErr('合言葉を入力してください'); return; }
+  if (val === ACCESS_PASSWORD) {
+    setAuthed();
+    document.getElementById('gate').classList.add('hide');
+    setTimeout(showApp, 650);
+  } else {
+    gateErr('合言葉が正しくありません');
+    const inp = document.getElementById('gate-input');
+    inp.classList.add('error');
+    setTimeout(() => inp.classList.remove('error'), 500);
+  }
+}
+
+function gateErr(msg) {
+  const el = document.getElementById('gate-err');
+  el.textContent = '✕ ' + msg;
+  setTimeout(() => el.textContent = '', 3000);
+}
+
+function showApp() {
+  document.getElementById('app').classList.add('visible');
+}
+
+document.getElementById('gate-submit').addEventListener('click', tryLogin);
+document.getElementById('gate-input').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+document.getElementById('vis-btn').addEventListener('click', () => {
+  const inp = document.getElementById('gate-input');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+});
+document.getElementById('logout-btn').addEventListener('click', () => {
+  if (!confirm('ログアウトしますか？次回は合言葉が必要です。')) return;
+  clearAuth(); location.reload();
+});
+
+// ── Tabs ──
+let activeMode = 'url';
+document.querySelectorAll('.mode-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    activeMode = btn.dataset.mode;
+    document.getElementById('pane-' + activeMode).classList.add('active');
+    scheduleQR();
+  });
+});
+
+// ── State ──
+let currentECL = 'M';
+let currentCorner = 'square';
+let logoData = null;
+
+document.querySelectorAll('#ecl-group .toggle-opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#ecl-group .toggle-opt').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentECL = btn.dataset.ecl;
+    scheduleQR();
+  });
+});
+
+document.querySelectorAll('#corner-group .toggle-opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#corner-group .toggle-opt').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentCorner = btn.dataset.corner;
+    scheduleQR();
+  });
+});
+
+document.getElementById('c-fg').addEventListener('input', e => {
+  document.getElementById('swatch-fg').style.background = e.target.value;
+  document.getElementById('val-fg').textContent = e.target.value;
+  scheduleQR();
+});
+document.getElementById('c-bg').addEventListener('input', e => {
+  document.getElementById('swatch-bg').style.background = e.target.value;
+  document.getElementById('val-bg').textContent = e.target.value;
+  scheduleQR();
+});
+document.getElementById('r-size').addEventListener('input', e => {
+  document.getElementById('val-size').textContent = e.target.value + 'px';
+  scheduleQR();
+});
+document.getElementById('wf-enc').addEventListener('change', scheduleQR);
+document.querySelectorAll('.qr-trigger').forEach(el => el.addEventListener('input', scheduleQR));
+
+// Logo
+document.getElementById('logo-file').addEventListener('change', function() {
+  if (this.files[0]) handleLogoFile(this.files[0]);
+});
+const logoDrop = document.getElementById('logo-drop');
+logoDrop.addEventListener('dragover', e => { e.preventDefault(); logoDrop.classList.add('dragging'); });
+logoDrop.addEventListener('dragleave', () => logoDrop.classList.remove('dragging'));
+logoDrop.addEventListener('drop', e => {
+  e.preventDefault(); logoDrop.classList.remove('dragging');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) handleLogoFile(f);
+});
+
+function handleLogoFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    logoData = e.target.result;
+    document.getElementById('logo-thumb').src = logoData;
+    document.getElementById('logo-thumb').style.display = 'block';
+    document.getElementById('logo-drop-text').style.display = 'none';
+    document.getElementById('logo-remove').style.display = 'inline-block';
+    document.getElementById('ecl-hint').style.display = 'block';
+    setECL('H');
+    scheduleQR();
+  };
+  reader.readAsDataURL(file);
+}
+
+function setECL(level) {
+  currentECL = level;
+  document.querySelectorAll('#ecl-group .toggle-opt').forEach(b => {
+    b.classList.toggle('active', b.dataset.ecl === level);
+  });
+}
+
+document.getElementById('logo-remove').addEventListener('click', () => {
+  logoData = null;
+  document.getElementById('logo-thumb').style.display = 'none';
+  document.getElementById('logo-thumb').src = '';
+  document.getElementById('logo-drop-text').style.display = 'block';
+  document.getElementById('logo-remove').style.display = 'none';
+  document.getElementById('ecl-hint').style.display = 'none';
+  document.getElementById('logo-file').value = '';
+  scheduleQR();
+});
+
+// ── QR Generation ──
+let qrTimer;
+function scheduleQR() { clearTimeout(qrTimer); qrTimer = setTimeout(generateQR, 180); }
+
+function getContent() {
+  switch (activeMode) {
+    case 'url':  return document.getElementById('f-url').value.trim();
+    case 'text': return document.getElementById('f-text').value.trim();
+    case 'vcard': {
+      const n = document.getElementById('vc-name').value.trim();
+      const t = document.getElementById('vc-tel').value.trim();
+      const e = document.getElementById('vc-email').value.trim();
+      const o = document.getElementById('vc-org').value.trim();
+      const u = document.getElementById('vc-url').value.trim();
+      if (!n && !t && !e) return '';
+      return `BEGIN:VCARD\r\nVERSION:3.0\r\nFN:${n}\r\nTEL:${t}\r\nEMAIL:${e}\r\nORG:${o}\r\nURL:${u}\r\nEND:VCARD`;
+    }
+    case 'wifi': {
+      const s = document.getElementById('wf-ssid').value.trim();
+      const p = document.getElementById('wf-pass').value.trim();
+      const enc = document.getElementById('wf-enc').value;
+      if (!s) return '';
+      return `WIFI:T:${enc};S:${s};P:${p};;`;
+    }
+  }
+  return '';
+}
+
+function generateQR() {
+  const content = getContent();
+  const out = document.getElementById('qr-out');
+
+  if (!content) {
+    out.innerHTML = `<div class="preview-empty">
+      <div class="preview-empty-icon">
+        <span></span><span></span><span></span>
+        <span></span><span></span><span></span>
+        <span></span><span></span><span></span>
+      </div>
+      <p>左側のフォームに入力すると<br>二次元コードが表示されます</p>
+    </div>`;
+    return;
+  }
+
+  const size = parseInt(document.getElementById('r-size').value);
+  const fg   = document.getElementById('c-fg').value;
+  const bg   = document.getElementById('c-bg').value;
+  const eclMap = { L: QRCode.CorrectLevel.L, M: QRCode.CorrectLevel.M, Q: QRCode.CorrectLevel.Q, H: QRCode.CorrectLevel.H };
+
+  out.innerHTML = '<div id="qr-inner-wrap"></div>';
+  new QRCode(document.getElementById('qr-inner-wrap'), {
+    text: content,
+    width: size, height: size,
+    colorDark: fg, colorLight: bg,
+    correctLevel: eclMap[currentECL]
+  });
+
+  setTimeout(() => {
+    const canvas = out.querySelector('canvas');
+    if (!canvas) return;
+    if (currentCorner !== 'square') applyCorners(canvas, fg, bg, size);
+    if (logoData) embedLogo(canvas, logoData, size);
+  }, 120);
+}
+
+function applyCorners(canvas, fg, bg, size) {
+  const ctx = canvas.getContext('2d');
+  const mods = 29;
+  const ms = size / mods;
+  const fs = 7 * ms;
+  const positions = [[0,0],[size-fs,0],[0,size-fs]];
+  positions.forEach(([x,y]) => {
+    ctx.fillStyle = bg;
+    ctx.fillRect(x-1, y-1, fs+2, fs+2);
+    if (currentCorner === 'round') {
+      fillRoundRect(ctx, x, y, fs, fs, ms*1.2, fg);
+      fillRoundRect(ctx, x+ms, y+ms, fs-2*ms, fs-2*ms, ms*0.8, bg);
+      fillRoundRect(ctx, x+2*ms, y+2*ms, fs-4*ms, fs-4*ms, ms*0.5, fg);
+    } else {
+      fillCircle(ctx, x+fs/2, y+fs/2, fs/2, fg);
+      fillCircle(ctx, x+fs/2, y+fs/2, fs/2-ms, bg);
+      fillCircle(ctx, x+fs/2, y+fs/2, fs/2-2*ms, fg);
+    }
+  });
+}
+
+function fillRoundRect(ctx, x, y, w, h, r, color) {
+  r = Math.min(r, w/2, h/2);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath(); ctx.fill();
+}
+
+function fillCircle(ctx, cx, cy, r, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(cx, cy, Math.max(r,0), 0, Math.PI*2); ctx.fill();
+}
+
+function embedLogo(canvas, dataURL, size) {
+  const ctx = canvas.getContext('2d');
+  const logoSize = size * 0.21;
+  const x = (size - logoSize) / 2;
+  const y = (size - logoSize) / 2;
+  const pad = 6;
+  fillRoundRect(ctx, x-pad, y-pad, logoSize+pad*2, logoSize+pad*2, 6, '#ffffff');
+  const img = new Image();
+  img.onload = () => ctx.drawImage(img, x, y, logoSize, logoSize);
+  img.src = dataURL;
+}
+
+// ── Downloads ──
+function getCanvas() { return document.querySelector('#qr-out canvas'); }
+
+document.getElementById('dl-png').addEventListener('click', () => {
+  const c = getCanvas();
+  if (!c) { toast('先に二次元コードを生成してください', 'ng'); return; }
+  const a = document.createElement('a');
+  a.download = `2dcode_${stamp()}.png`;
+  a.href = c.toDataURL('image/png');
+  a.click();
+  toast('PNG でダウンロードしました', 'ok');
+});
+
+document.getElementById('dl-svg').addEventListener('click', () => {
+  const c = getCanvas();
+  if (!c) { toast('先に二次元コードを生成してください', 'ng'); return; }
+  if (logoData) { toast('ロゴ使用時は PNG を推奨します', 'ng'); return; }
+  const sz = c.width;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${sz}" height="${sz}"><image href="${c.toDataURL('image/png')}" width="${sz}" height="${sz}"/></svg>`;
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.download = `2dcode_${stamp()}.svg`;
+  a.href = url; a.click();
+  URL.revokeObjectURL(url);
+  toast('SVG でダウンロードしました', 'ok');
+});
+
+function stamp() { return new Date().toISOString().slice(0,10).replace(/-/g,''); }
+
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `toast ${type} show`;
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── Init ──
+boot();
+</script>
+</body>
+</html>
